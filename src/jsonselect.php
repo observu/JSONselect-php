@@ -2,7 +2,7 @@
 /**
  * Implements JSONSelectors as described on http://jsonselect.org/
  *
- * Currently only the level_1 tests as provided in https://github.com/lloyd/JSONSelectTests successeed!
+ * Currently only the level_1 tests as provided in https://github.com/lloyd/JSONSelectTests succeed!
  *
  * */
 
