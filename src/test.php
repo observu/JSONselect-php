@@ -1,43 +1,59 @@
 <?
 include("jsonselect.php");
+// Assumes test files as provided by https://github.com/lloyd/JSONSelectTests
+$testpath = "../JSONSelectTests/level_";
 
-$data = json_decode('{
-    "name": {
-        "first": "Lloyd",
-        "last": "Hilaiel"
-    },
-    "favoriteColor": "yellow",
-    "languagesSpoken": [
-        {
-            "lang": "Bulgarian",
-            "level": "advanced"
-        },
-        {
-            "lang": "English",
-            "level": "native",
-            "preferred": true
-        },
-        {
-            "lang": "Spanish",
-            "level": "beginner"
-        }
-    ],
-    "seatingPreference": [
-        "window",
-        "aisle"
-    ],
-    "drinkPreference": [
-        "whiskey",
-        "beer",
-        "wine"
-    ],
-    "weight": 172
-}');
+foreach(array(1,2,3) as $level){
+
+  foreach(glob($testpath.$level."/*.json") as $filename){
+      echo "test with $filename\n---\n";
+      $name = basename($filename);
+      $dir = dirname($filename);
+
+      $group =  preg_replace('/\.json$/', '', $name);
+
+      $testdata = file_get_contents($filename);
+      $testdataStruct = json_decode($testdata);
+
+      foreach(glob($testpath.$level."/".$group."*.selector") as $testfilename){
+         
+          $selector = file_get_contents($testfilename);
+
+          echo "\nWITH $selector\n";
+
+          $expected_output = file_get_contents( preg_replace('/\.selector/','.output', $testfilename) );
+          $real_output = ""; 
+          try{
+              foreach( (new JSONSelect($selector))->match($testdataStruct) as $r){
+                $real_output .= json_encode($r)."\n";
+            }
+          }catch(Exception $e){
+            $real_output .= "Error ".$e->getMessage();
+          }
+
+          $ws = array(' ',"\n","\r");
+          if(str_replace($ws,'', $expected_output)==str_replace($ws,'',$real_output)){
+            echo "SUCCESS\n";
+          }else{
+            echo "FAIL\n";
+            echo "-expected:\n\n";
+            echo $expected_output;
+            echo "\n\n-actual:\n\n";
+            echo $real_output."\n";
+          }
+
+      }
 
 
-$expr = ".languagesSpoken :has(.lang:val(\"English\"))";
+  }
 
 
-print_r( (new JSONSelect($expr))->match($data) );
+
+}
+
+
+
+
+?>
 
 

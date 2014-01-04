@@ -1,4 +1,11 @@
 <?
+/**
+ * Implements JSONSelectors as described on http://jsonselect.org/
+ *
+ * Currently only the level_1 tests as provided in https://github.com/lloyd/JSONSelectTests successeed!
+ *
+ * */
+
 class JSONSelect {
 
     var $sel;
@@ -406,16 +413,18 @@ class JSONSelect {
                     $s['pf'] = $l[2];
                     //m = nthPat.exec(str.substr(l[0]));
                     preg_match($this->nthPat, substr($str, $l[0]), $m);
+                    
+
                     if (!$m) $this->te("mepf", $str);
-                    if (isset($m[5])) {
+                    if (strlen($m[5])>0) {
                         $s['a'] = 2;
                         $s['b'] = ($m[5] === "odd") ? 1 : 0;
-                    } else if (isset($m[6])) {
+                    } else if (strlen($m[6])>0) {
                         $s['a'] = 0;
                         $s['b'] = (int)$m[6];
                     } else {
-                        $s['a'] = (int)((isset($m[1]) ? $m[1] : "+") + (isset($m[2]) ? $m[2] : "1"));
-                        $s['b'] = isset($m[3]) ? (int)($m[3] + $m[4]) : 0;
+                        $s['a'] = (int)(($m[1] ? $m[1] : "+") . ($m[2] ? $m[2] : "1"));
+                        $s['b'] = $m[3] ? (int)($m[3] + $m[4]) : 0;
                     }
                     $l[0] += strlen($m[0]);
                 }
@@ -445,6 +454,7 @@ class JSONSelect {
     }
 
     function mn($node, $sel, $id, $num, $tot) {
+        //echo "match on $num/$tot\n";
         $sels = array();
         $cs = ($sel[0] === ">") ? $sel[1] : $sel[0];
         $m = true;
@@ -452,14 +462,19 @@ class JSONSelect {
         if (isset($cs['type'])) $m = $m && ($cs['type'] === $this->mytypeof($node));
         if (isset($cs['id']))   $m = $m && ($cs['id'] === $id);
         if ($m && isset($cs['pf'])) {
-            if ($cs['pf'] === ":nth-last-child") $num = $tot - $num;
+            if($num===null) $num = null;
+            else if ($cs['pf'] === ":nth-last-child") $num = $tot - $num;
             else $num++;
+
             if ($cs['a'] === 0) {
                 $m = $cs['b'] === $num;
-            } else {
+            } else if($num!==null){
                 $mod = (($num - $cs['b']) % $cs['a']);
 
                 $m = (!$mod && (($num*$cs['a'] + $cs['b']) >= 0));
+
+            }else {
+                $m = false;
             }
         }
         if ($m && isset($cs['has'])) {
@@ -492,7 +507,10 @@ class JSONSelect {
             }
             else if (sizeof($sel) > 1) { $m = false; $sels []= array_slice($sel,1); }
         }
-
+        //echo "MATCH? ";
+        //echo print_r($node,true);
+        //echo $m ? "YES":"NO";
+        //echo "\n";
         return array($m, $sels);
     }
 
@@ -516,15 +534,16 @@ class JSONSelect {
                 $a0 []= $x[1][$j];
             }
         }
-        if (is_array($obj) || is_object($obj)) {
+        if (sizeof($a0)>0 && ( is_array($obj) || is_object($obj) ) ) {
             if (sizeof($a0) >= 1) {
                 array_unshift($a0, ",");
             }
             if(is_array($obj)){
-                $_num = sizeof($obj);
+                $_tot = sizeof($obj);
+                //echo "iterate $_tot\n";
                 foreach ($obj as $k=>$v) {
-                $collector = $this->collect($a0, $v, $collector, null, $k, $_num, $returnFirst);
-                if($returnFirst && sizeof($collector)>0) return $collector;
+                    $collector = $this->collect($a0, $v, $collector, null, $k, $_tot, $returnFirst);
+                    if($returnFirst && sizeof($collector)>0) return $collector;
                 }
             }else{
                 foreach ($obj as $k=>$v) {
