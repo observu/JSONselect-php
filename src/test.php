@@ -24,11 +24,12 @@ foreach(array(1,2,3) as $level){
           $expected_output = file_get_contents( preg_replace('/\.selector/','.output', $testfilename) );
           $real_output = ""; 
           try{
-              foreach( (new JSONSelect($selector))->match($testdataStruct) as $r){
+            $parser= (new JSONSelect($selector));
+            foreach($parser->match($testdataStruct) as $r){
                 $real_output .= json_encode($r)."\n";
             }
           }catch(Exception $e){
-            $real_output .= "Error ".$e->getMessage();
+            $real_output .= "Error: ".$e->getMessage();
           }
 
           $ws = array(' ',"\n","\r");
@@ -36,6 +37,7 @@ foreach(array(1,2,3) as $level){
             echo "SUCCESS\n";
           }else{
             echo "FAIL\n";
+            print_r($parser->sel);
             echo "-expected:\n\n";
             echo $expected_output;
             echo "\n\n-actual:\n\n";

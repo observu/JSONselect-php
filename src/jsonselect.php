@@ -2,7 +2,7 @@
 /**
  * Implements JSONSelectors as described on http://jsonselect.org/
  *
- * Currently only the level_1 tests as provided in https://github.com/lloyd/JSONSelectTests succeed!
+ * Currently only the level_1 and level_2 tests as provided in https://github.com/lloyd/JSONSelectTests succeed!
  *
  * */
 
@@ -13,8 +13,6 @@ class JSONSelect {
     function JSONSelect($expr){
         
         $this->sel = $this->parse($expr);
-
-        //print_r($this->sel);
 
     }
 
@@ -296,8 +294,9 @@ class JSONSelect {
                 // `Z A ~ B` maps to `Z :has(:root > A) > B, Z:has(:root > A) > B`
                 // This first clause, takes care of the first case, and the first half of the latter case.
                 if ($i < 2 || $sel[$i-2] != '>') {
-                    $s = array_slice($s,0,$i-1);
-                    $s = array_merge($s, array( array('has'=>array(array(array('pc'=> ":root"), ">", $sel[$i-1]))), ">"));
+                    $s = array_slice($sel,0,$i-1);
+                    $s []= array('has'=>array(array(array('pc'=> ":root"), ">", $sel[$i-1] )));
+                    $s []= ">";
                     $s = array_merge($s, array_slice($sel, $i+1));
                     $sels []= $s;
                 }
@@ -313,8 +312,7 @@ class JSONSelect {
                     if (!isset($z['has'])) $z['has'] = array();
                     $z['has'] []= array(  array('pc'=> ":root"), ">", $sel[$i-1]);
 
-                    // TODO: check original code, doesn't make sense  concat should be with arrays
-                    $s = array_merge($s, array( array($z, '>', array_slice($sel, $i+1) )) );
+                    $s = array_merge($s, array($z, '>'), array_slice($sel, $i+1)  );
                     $sels  []= $s;
                 }
                 break;
