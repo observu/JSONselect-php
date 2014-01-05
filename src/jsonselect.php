@@ -2,9 +2,12 @@
 /**
  * Implements JSONSelectors as described on http://jsonselect.org/
  *
- * Currently only the level_1 and level_2 tests as provided in https://github.com/lloyd/JSONSelectTests succeed!
+ * 
  *
  * */
+
+define('VALUE_PLACEHOLDER','__X__special_value__X__');
+
 
 class JSONSelect {
 
@@ -116,7 +119,7 @@ class JSONSelect {
             // (4) the 'x' value placeholder
             "(x)|" .
             // (5) binops
-            "(&&|\\|\\||[\\$\\^<>!\\*]=|[=+\\-*/%<>])|" .
+            "(&&|\\|\\||[\\$\\^<>!\\*]=|[=+\\-*\\/%<>])|" .
             // (6) parens
             "([\\(\\)])" .
             ")/";
@@ -153,14 +156,14 @@ class JSONSelect {
             $off += strlen($m[0]);
             //$v = $m[1] || $m[2] || $m[3] || $m[5] || $m[6];
             foreach(array(1,2,3,5,6) as $k){
-                if(isset($m[$k])){
+                if(strlen($m[$k])>0){
                     $v = $m[$k];
                     break;
                 }
             }
             
-            if (isset($m[1]) || isset($m[2]) || isset($m[3])) return array($off, 0, json_decode($v));
-            else if (isset($m[4])) return array($off, 0, null);
+            if (strlen($m[1]) || strlen($m[2]) || strlen($m[3])) return array($off, 0, json_decode($v));
+            else if (strlen($m[4])) return array($off, 0, VALUE_PLACEHOLDER);
             return array($off, $v);
         }
     }
@@ -169,22 +172,28 @@ class JSONSelect {
         if (!$off) $off = 0;
         // first we expect a value or a '('
         $l = $this->exprLex($str, $off);
+        //echo "exprLex ".print_r($l,true);
         $lhs=null;
         if ($l && $l[1] === '(') {
             $lhs = $this->exprParse2($str, $l[0]);
             $p = $this->exprLex($str, $lhs[0]);
+
+            //echo "exprLex2 ".print_r($p,true);
+            
             if (!$p || $p[1] !== ')') $this->te('epex', $str);
             $off = $p[0];
             $lhs = [ '(', $lhs[1] ];
         } else if (!$l || ($l[1] && $l[1] != 'x')) {
             $this->te("ee", $str . " - " . ( $l[1] && $l[1] ));
         } else {
-            $lhs = (($l[1] === 'x') ? null : $l[2]);
+            $lhs = (($l[1] === 'x') ? VALUE_PLACEHOLDER : $l[2]);
             $off = $l[0];
         }
 
         // now we expect a binary operator or a ')'
         $op = $this->exprLex($str, $off);
+
+        //echo "exprLex3 ".print_r($op,true);
         if (!$op || $op[1] == ')') return array($off, $lhs);
         else if ($op[1] == 'x' || !$op[1]) {
             $this->te('bop', $str . " - " . ( $op[1] && $op[1] ));
@@ -201,9 +210,13 @@ class JSONSelect {
             $v = array($lhs, $op[1], $rhs);
         }
         else {
-            $v = $rhs;
+            // TODO: fix this, prob related due to $v copieeing $rhs instead of referencing
+            //echo "re-arrange lhs:".print_r($lhs,true).' rhs: '.print_r($rhs,true);
+            //print_r($rhs);
+            
+            $v = &$rhs;
             while (is_array($rhs[0]) && $rhs[0][0] != '(' && $this->operator($op[1],0) >= $this->operator($rhs[0][1],0)) {
-                $rhs = $rhs[0];
+                $rhs = &$rhs[0];
             }
             $rhs[0] = array($lhs, $op[1], $rhs[0]);
         }
@@ -214,17 +227,18 @@ class JSONSelect {
         function deparen($v) {
             if ( (!is_object($v) && !is_array($v)) || $v === null) return $v;
             else if ($v[0] === '(') return $this->deparen($v[1]);
-            else return [$this->deparen($v[0]), $v[1], $this->deparen($v[2])];
+            else return array($this->deparen($v[0]), $v[1], $this->deparen($v[2]));
         }
 
 
     function exprParse($str, $off) {
         $e = $this->exprParse2($str, $off ? $off : 0);
-        return [$e[0], $this->deparen($e[1])];
+
+        return array($e[0], $this->deparen($e[1]));
     }
 
     function exprEval($expr, $x) {
-        if ($expr === null) return $x;
+        if ($expr === VALUE_PLACEHOLDER) return $x;
         else if ($expr === null || (!is_object($expr) && !is_array($expr))) {
             return $expr;
         }
@@ -380,7 +394,7 @@ class JSONSelect {
                 }
             } else if ($l[1] === $this->toks['psf']) {
                 if ($l[2] === ":val" || $l[2] === ":contains") {
-                    $s['expr'] = array( null, $l[2] === ":val" ? "=" : "*=", null);
+                    $s['expr'] = array(VALUE_PLACEHOLDER, $l[2] === ":val" ? "=" : "*=", null);
                     // any amount of whitespace, followed by paren, string, paren
                     $l = $this->lex($str, ($off = $l[0]));
                     if ($l && $l[1] === " ") $l = $this->lex($str, $off = $l[0]);
