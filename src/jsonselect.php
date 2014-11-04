@@ -1,4 +1,4 @@
-<?
+<?php
 /**
  * Implements JSONSelectors as described on http://jsonselect.org/
  *

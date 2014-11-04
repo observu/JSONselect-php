@@ -1,4 +1,4 @@
-<?
+<?php
 include("jsonselect.php");
 // Assumes test files as provided by https://github.com/lloyd/JSONSelectTests
 $testpath = "../JSONSelectTests/level_";
