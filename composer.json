@@ -1,0 +1,30 @@
+{
+    "name": "observu/JSONselect-php",
+    "description": "Port of JSONselect to php",
+    "keywords": ["JSONselect", "php"],
+    "homepage": "https://github.com/observu/JSONselect-php",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "observu",
+            "email": "info@observu.com"
+        }
+    ],
+
+    "require": {
+        "php": ">=5.4"
+    },
+
+    "autoload": {
+        "classmap": ["src/jsonselect.php"],
+        "psr-0": {
+            "Detection": "namespaced/"
+        }
+    },
+
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.0.x-dev"
+        }
+    }
+}
