@@ -37,7 +37,7 @@ foreach(array(1,2,3) as $level){
             echo "SUCCESS\n";
           }else{
             echo "FAIL\n";
-            print_r($parser->sel);
+            print_r($parser->getSelector());
             echo "-expected:\n\n";
             echo $expected_output;
             echo "\n\n-actual:\n\n";
