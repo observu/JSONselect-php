@@ -1,61 +1,71 @@
 <?php
+
 /**
+ *
  * Implements JSONSelectors as described on http://jsonselect.org/
  *
- * 
- *
- * */
+ */
 
 define('VALUE_PLACEHOLDER','__X__special_value__X__');
 
 
 class JSONSelect {
+    private $sel;
+    private $errorCodes;
+    private $toks;
+    // A regular expression for matching "nth expressions" (see grammar, what :nth-child() eats)
+    private $nthPat = '/^\s*\(\s*(?:([+\-]?)([0-9]*)n\s*(?:([+\-])\s*([0-9]))?|(odd|even)|([+\-]?[0-9]+))\s*\)/';
 
-    var $sel;
-
-    function JSONSelect($expr){
-        
+    /**
+     * @param string $expr Selector to be used
+     */
+    function __construct($expr){
+        $this->setErrorCodes();
+        $this->setTokensLexer();
         $this->sel = $this->parse($expr);
-
     }
 
-// emitted error codes.
-    var $errorCodes = array(
-        "bop" => "binary operator expected",
-        "ee"  => "expression expected",
-        "epex"=> "closing paren expected ')'",
-        "ijs" => "invalid json string",
-        "mcp" => "missing closing paren",
-        "mepf"=> "malformed expression in pseudo-function",
-        "mexp"=> "multiple expressions not allowed",
-        "mpc" => "multiple pseudo classes (:xxx) not allowed",
-        "nmi" => "multiple ids not allowed",
-        "pex" => "opening paren expected '('",
-        "se"  => "selector expected",
-        "sex" => "string expected",
-        "sra" => "string required after '.'",
-        "uc"  => "unrecognized char",
-        "ucp" => "unexpected closing paren",
-        "ujs" => "unclosed json string",
-        "upc" => "unrecognized pseudo class"
-    );
+    private function setErrorCodes() {
+        $this->errorCodes = array(
+            "bop" => "binary operator expected",
+            "ee"  => "expression expected",
+            "epex"=> "closing paren expected ')'",
+            "ijs" => "invalid json string",
+            "mcp" => "missing closing paren",
+            "mepf"=> "malformed expression in pseudo-function",
+            "mexp"=> "multiple expressions not allowed",
+            "mpc" => "multiple pseudo classes (:xxx) not allowed",
+            "nmi" => "multiple ids not allowed",
+            "pex" => "opening paren expected '('",
+            "se"  => "selector expected",
+            "sex" => "string expected",
+            "sra" => "string required after '.'",
+            "uc"  => "unrecognized char",
+            "ucp" => "unexpected closing paren",
+            "ujs" => "unclosed json string",
+            "upc" => "unrecognized pseudo class"
+        );
+    }
 
     // throw an error message
-    function te($ec, $context) {
+    private function te($ec, $context) {
       throw new Exception($this->errorCodes[$ec] . (" in '" . $context . "'"));
     }
 
     // THE LEXER
-    var $toks = array( 
-        'psc' => 1, // pseudo class
-        'psf' => 2, // pseudo class function
-        'typ' => 3, // type
-        'str' => 4, // string
-        'ide' => 5  // identifiers (or "classes", stuff after a dot)
-    );
 
+
+    private function setTokensLexer() {
+        $this->toks = array(
+            'psc' => 1, // pseudo class
+            'psf' => 2, // pseudo class function
+            'typ' => 3, // type
+            'str' => 4, // string
+            'ide' => 5  // identifiers (or "classes", stuff after a dot)
+        );
+    }
     // The primary lexing regular expression in jsonselect
-    function pat(){ 
+    private function pat(){
         return "/^(?:" .
         // (1) whitespace
         "([\\r\\n\\t\\ ]+)|" .
@@ -78,15 +88,10 @@ class JSONSelect {
         ")/u";
     }
 
-    // A regular expression for matching "nth expressions" (see grammar, what :nth-child() eats)
-    var $nthPat = '/^\s*\(\s*(?:([+\-]?)([0-9]*)n\s*(?:([+\-])\s*([0-9]))?|(odd|even)|([+\-]?[0-9]+))\s*\)/';
 
-    function lex($str, $off) {
+    private function lex($str, $off) {
         if (!$off) $off = 0;
-        //var m = pat.exec(str.substr(off));
         preg_match($this->pat(), substr($str, $off), $m);
-        
-        //echo "lex from $off ".print_r($m,true)."\n";
 
         if (!$m) return null;
         $off+=strlen($m[0]);
@@ -106,7 +111,7 @@ class JSONSelect {
 
     // THE EXPRESSION SUBSYSTEM
 
-    function exprPat() {
+    private function exprPat() {
             return 
             // skip and don't capture leading whitespace
             "/^\\s*(?:" .
@@ -125,9 +130,8 @@ class JSONSelect {
             ")/";
     }
 
-    function operator($op,$ix){
-
-        $operators = array( 
+    private function operator($op,$ix){
+        $operators = array(
             '*' =>  array( 9, function($lhs, $rhs) { return $lhs * $rhs; } ),
             '/' =>  array( 9, function($lhs, $rhs) { return $lhs / $rhs; } ),
             '%' =>  array( 9, function($lhs, $rhs) { return $lhs % $rhs; } ),
@@ -148,7 +152,7 @@ class JSONSelect {
         return $operators[$op][$ix];
     }
 
-    function exprLex($str, $off) {
+    private function exprLex($str, $off) {
         //var v, m = exprPat.exec(str.substr(off));
         $v = null;
         preg_match($this->exprPat(), substr($str, $off), $m);
@@ -156,19 +160,23 @@ class JSONSelect {
             $off += strlen($m[0]);
             //$v = $m[1] || $m[2] || $m[3] || $m[5] || $m[6];
             foreach(array(1,2,3,5,6) as $k){
-                if(strlen($m[$k])>0){
+                if(isset($m[$k]) && strlen($m[$k])>0){
                     $v = $m[$k];
                     break;
                 }
             }
             
-            if (strlen($m[1]) || strlen($m[2]) || strlen($m[3])) return array($off, 0, json_decode($v));
-            else if (strlen($m[4])) return array($off, 0, VALUE_PLACEHOLDER);
+            if (strlen($m[1]) || strlen($m[2]) || strlen($m[3])) {
+                return array($off, 0, json_decode($v));
+            } else if (strlen($m[4])) {
+                return array($off, 0, VALUE_PLACEHOLDER);
+            }
+
             return array($off, $v);
         }
     }
 
-    function exprParse2($str, $off) {
+    private function exprParse2($str, $off) {
         if (!$off) $off = 0;
         // first we expect a value or a '('
         $l = $this->exprLex($str, $off);
@@ -224,24 +232,26 @@ class JSONSelect {
     }
 
 
-        function deparen($v) {
-            if ( (!is_object($v) && !is_array($v)) || $v === null) return $v;
-            else if ($v[0] === '(') return $this->deparen($v[1]);
-            else return array($this->deparen($v[0]), $v[1], $this->deparen($v[2]));
-        }
+    private function deparen($v) {
+        if ( (!is_object($v) && !is_array($v)) || $v === null) return $v;
+        else if ($v[0] === '(') return $this->deparen($v[1]);
+        else return array($this->deparen($v[0]), $v[1], $this->deparen($v[2]));
+    }
 
 
-    function exprParse($str, $off) {
+    private function exprParse($str, $off) {
         $e = $this->exprParse2($str, $off ? $off : 0);
 
         return array($e[0], $this->deparen($e[1]));
     }
 
-    function exprEval($expr, $x) {
-        if ($expr === VALUE_PLACEHOLDER) return $x;
-        else if ($expr === null || (!is_object($expr) && !is_array($expr))) {
+    private function exprEval($expr, $x) {
+        if ($expr === VALUE_PLACEHOLDER) {
+            return $x;
+        } else if ($expr === null || (!is_object($expr) && !is_array($expr))) {
             return $expr;
         }
+
         $lhs = $this->exprEval($expr[0], $x);
         $rhs = $this->exprEval($expr[2], $x);
         $op = $this->operator($expr[1],1);
@@ -251,7 +261,7 @@ class JSONSelect {
 
     // THE PARSER
 
-    function parse($str, $off=0, $nested=null, $hints=null) {
+    private function parse($str, $off=0, $nested=null, $hints=null) {
         if (!$nested) $hints = array();
 
         $a = array();
@@ -288,7 +298,6 @@ class JSONSelect {
         }
         if ($nested && !$readParen) $this->te("mcp", $str);
         if ($am) $am []= $a;
-        $rv;
         if (!$nested && isset($hints['usesSiblingOp'])) {
             $rv = $this->normalize($am ? $am : $a);
         } else {
@@ -299,7 +308,7 @@ class JSONSelect {
         return array($off, $rv);
     }
 
-    function normalizeOne($sel) {
+    private function normalizeOne($sel) {
         $sels = array();
         $s=null;
         for ($i = 0; $i < sizeof($sel); $i++) {
@@ -336,7 +345,7 @@ class JSONSelect {
         return sizeof($sels) > 1 ? array_merge(array(','), $sels) : $sels[0];
     }
 
-    function normalize($sels) {
+    private function normalize($sels) {
         if ($sels[0] === ',') {
             $r = array(",");
             for ($i = 0; $i < sizeof($sels); $i++) {
@@ -349,13 +358,10 @@ class JSONSelect {
         }
     }
 
-    function parse_selector($str, $off, $hints) {
+    private function parse_selector($str, $off, $hints) {
         $soff = $off;
         $s = array();
         $l = $this->lex($str, $off);
-
-        //echo "parse_selector:1 @$off ".print_r($l,true)."\n";
-
 
         // skip space
         if ($l && $l[1] === " ") { $soff = $off = $l[0]; $l = $this->lex($str, $off); }
@@ -368,18 +374,16 @@ class JSONSelect {
             $l = $this->lex($str, ($off = $l[0]));
         }
 
-        
-
         // now support either an id or a pc
         while (true) {
             //echo "parse_selector:1 @$off  ".print_r($l,true)."\n";
             if ($l === null) {
                 break;
             } else if ($l[1] === $this->toks['ide']) {
-                if ($s['id']) $this->te("nmi", $l[1]);
+                if (isset($s['id']) && $s['id']) $this->te("nmi", $l[1]);
                 $s[ 'id'] = $l[2];
             } else if ($l[1] === $this->toks['psc']) {
-                if ($s['pc'] || $s['pf']) $this->te("mpc", $l[1]);
+                if ((isset($s['pc']) && $s['pc']) || (isset($s['pf']) && $s['pf'])) $this->te("mpc", $l[1]);
                 // collapse first-child and last-child into nth-child expressions
                 if ($l[2] === ":first-child") {
                     $s['pf'] = ":nth-child";
@@ -428,10 +432,10 @@ class JSONSelect {
                     
 
                     if (!$m) $this->te("mepf", $str);
-                    if (strlen($m[5])>0) {
+                    if (isset($m[5]) && strlen($m[5])>0) {
                         $s['a'] = 2;
                         $s['b'] = ($m[5] === "odd") ? 1 : 0;
-                    } else if (strlen($m[6])>0) {
+                    } else if (isset($m[6]) && strlen($m[6])>0) {
                         $s['a'] = 0;
                         $s['b'] = (int)$m[6];
                     } else {
@@ -448,25 +452,20 @@ class JSONSelect {
 
         // now if we didn't actually parse anything it's an error
         if ($soff === $off) $this->te("se", $str);
-        //echo "parsed ";
-        //print_r($s);
         return array($off, $s);
     }
 
     // THE EVALUATOR
-
-
-    function mytypeof($o) {
-        if ($o === null) return "null";
-        if (is_object($o)) return "object";
-        if(is_array($o)) return "array";
-        if(is_numeric($o)) return "number";
-        if($o===true || $o==false) return "boolean";
-        return "string";
+    private function mytypeof($o) {
+        if ($o === null) return 'null';
+        if (is_object($o)) return 'object';
+        if (is_array($o)) return 'array';
+        if (is_numeric($o)) return 'number';
+        if ($o===true || $o==false) return 'boolean';
+        return 'string';
     }
 
-    function mn($node, $sel, $id, $num, $tot) {
-        //echo "match on $num/$tot\n";
+    private function mn($node, $sel, $id, $num, $tot) {
         $sels = array();
         $cs = ($sel[0] === ">") ? $sel[1] : $sel[0];
         $m = true;
@@ -492,16 +491,11 @@ class JSONSelect {
         if ($m && isset($cs['has'])) {
             // perhaps we should augment forEach to handle a return value
             // that indicates "client cancels traversal"?
-            //var bail = function() { throw 42; };
             for ($i = 0; $i < sizeof($cs['has']); $i++) {
-                //echo "select for has ".print_r($cs['has'],true);
                 $res = $this->collect($cs['has'][$i], $node, null, null, null, true );
                 if(sizeof($res)>0){
-                    //echo " => ".print_r($res, true);
-                    //echo " on ".print_r($node, true);
                     continue;
                 }
-                //echo "blaaaa \n";
                 $m = false;
                 break;
             }
@@ -510,7 +504,7 @@ class JSONSelect {
             $m = $this->exprEval($cs['expr'], $node);
         }
         // should we repeat this selector for descendants?
-        if ($sel[0] !== ">" && $sel[0]['pc'] !== ":root") $sels []= $sel;
+        if ($sel[0] !== ">" && (!isset($sel[0]['pc']) || $sel[0]['pc'] !== ":root")) $sels []= $sel;
 
         if ($m) {
             // is there a fragment that we should pass down?
@@ -519,23 +513,16 @@ class JSONSelect {
             }
             else if (sizeof($sel) > 1) { $m = false; $sels []= array_slice($sel,1); }
         }
-        //echo "MATCH? ";
-        //echo print_r($node,true);
-        //echo $m ? "YES":"NO";
-        //echo "\n";
         return array($m, $sels);
     }
 
-    function collect($sel, $obj, $collector=null, $id=null, $num=null, $tot=null, $returnFirst=false) {
+    private function collect($sel, $obj, $collector=null, $id=null, $num=null, $tot=null, $returnFirst=false) {
         if(!$collector) $collector = array();
 
         $a = ($sel[0] === ",") ? array_slice($sel, 1) : array($sel);
         $a0 = array();
         $call = false;
-        $i = 0;
-        $j = 0;
-        $k = 0; 
-        $x = 0;
+
         for ($i = 0; $i < sizeof($a); $i++) {
             $x = $this->mn($obj, $a[$i], $id, $num, $tot);
             if ($x[0]) {
@@ -550,9 +537,9 @@ class JSONSelect {
             if (sizeof($a0) >= 1) {
                 array_unshift($a0, ",");
             }
+
             if(is_array($obj)){
                 $_tot = sizeof($obj);
-                //echo "iterate $_tot\n";
                 foreach ($obj as $k=>$v) {
                     $collector = $this->collect($a0, $v, $collector, null, $k, $_tot, $returnFirst);
                     if($returnFirst && sizeof($collector)>0) return $collector;
@@ -562,21 +549,26 @@ class JSONSelect {
                     $collector = $this->collect($a0, $v, $collector, $k, null, null, $returnFirst);
                     if($returnFirst && sizeof($collector)>0) return $collector;
                 }
-
             }
+
         }
 
         if($call){
-            $collector []= $obj;
+            $collector[] = $obj;
         }
 
         return $collector;
     }
 
-    function match($obj){
+    /**
+     *
+     * Returns an array with values of used selectors applied to object
+     *
+     * @param object $obj
+     * @return array|null
+     */
+    public function match($obj){
         return $this->collect($this->sel[1], $obj);
     } 
 
-
 }
-?>
